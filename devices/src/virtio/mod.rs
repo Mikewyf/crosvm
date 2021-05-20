@@ -5,7 +5,7 @@
 //! Implements virtio devices, queues, and transport mechanisms.
 
 mod balloon;
-mod block;
+pub mod block;
 mod block_async;
 mod block_common;
 mod console;
