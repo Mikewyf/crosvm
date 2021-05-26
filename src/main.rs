@@ -2311,6 +2311,8 @@ fn print_usage() {
     println!("    suspend - Suspends the crosvm instance.");
     println!("    usb - Manage attached virtual USB devices.");
     println!("    version - Show package version.");
+    println!("    memsize - Get memory size of the crosvm instance.");
+    println!("    readmem - Read content of given memory address of the crosvm instance.");
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -2344,6 +2346,34 @@ fn modify_battery(mut args: std::env::Args) -> std::result::Result<(), ()> {
     do_modify_battery(&socket_path, &*battery_type, &*property, &*target)
 }
 
+fn get_memsize(mut args: std::env::Args) -> std::result::Result<(), ()> {
+    if args.len() == 0 {
+        print_help("crosvm memsize", "VM_SOCKET...", &[]);
+        println!("Gets memsize of crosvm instance listening on each `VM_SOCKET` given.");
+        return Err(());
+    }
+    let socket_path = &args.next().unwrap();
+    let socket_path = Path::new(&socket_path);
+    let response = handle_request(&VmRequest::GetMemsize, socket_path)?;
+    println!("{}", response);
+    Ok(())
+}
+
+fn read_mem(mut args: std::env::Args) -> std::result::Result<(), ()> {
+    if args.len() < 3 {
+        print_help("crosvm readmem", "VM_SOCKET...", &[]);
+        println!("Reads content of given memory of crosvm instance.");
+        return Err(());
+    }
+    let base_address = args.next().unwrap();
+    let offset = args.next().unwrap();
+    let socket_path = &args.next().unwrap();
+    let socket_path = Path::new(&socket_path);
+    let response = handle_request(&VmRequest::ReadMem(base_address, offset), socket_path)?;
+    println!("{}", response);
+    Ok(())
+}
+
 fn crosvm_main() -> std::result::Result<(), ()> {
     if let Err(e) = syslog::init() {
         println!("failed to initialize syslog: {}", e);
@@ -2375,6 +2405,8 @@ fn crosvm_main() -> std::result::Result<(), ()> {
         Some("usb") => modify_usb(args),
         Some("version") => pkg_version(),
         Some("battery") => modify_battery(args),
+        Some("memsize") => get_memsize(args),
+        Some("readmem") => read_mem(args),
         Some(c) => {
             println!("invalid subcommand: {:?}", c);
             print_usage();

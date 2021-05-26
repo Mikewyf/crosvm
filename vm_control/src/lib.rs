@@ -29,6 +29,7 @@ use base::{
     error, with_as_descriptor, AsRawDescriptor, Error as SysError, Event, ExternalMapping, Fd,
     FromRawDescriptor, IntoRawDescriptor, MappedRegion, MemoryMappingArena, MemoryMappingBuilder,
     MemoryMappingBuilderUnix, MmapError, Protection, Result, SafeDescriptor, SharedMemory, Tube,
+    MemoryMapping,
 };
 use hypervisor::{IrqRoute, IrqSource, Vm};
 use resources::{Alloc, MmioType, SystemAllocator};
@@ -36,8 +37,9 @@ use rutabaga_gfx::{
     DrmFormat, ImageAllocationInfo, RutabagaGralloc, RutabagaGrallocFlags, RutabagaHandle,
     VulkanInfo,
 };
+
 use sync::Mutex;
-use vm_memory::GuestAddress;
+use vm_memory::{GuestAddress, GuestMemory};
 
 /// Struct that describes the offset and stride of a plane located in GPU memory.
 #[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
@@ -907,6 +909,10 @@ pub enum VmRequest {
     Suspend,
     /// Resume the VM's VCPUs that were previously suspended.
     Resume,
+    /// Command to get memory size.
+    GetMemsize,
+    /// Command to read guest memory.
+    ReadMem(u64, u64),
     /// Command for balloon driver.
     BalloonCommand(BalloonControlCommand),
     /// Send a command to a disk chosen by `disk_index`.
@@ -979,6 +985,7 @@ impl VmRequest {
     /// received this `VmRequest`.
     pub fn execute(
         &self,
+        vm: &mut impl Vm,
         run_mode: &mut Option<VmRunMode>,
         balloon_host_tube: &Tube,
         disk_host_tubes: &[Tube],
@@ -996,6 +1003,30 @@ impl VmRequest {
             }
             VmRequest::Resume => {
                 *run_mode = Some(VmRunMode::Running);
+                VmResponse::Ok
+            }
+            VmRequest::GetMemsize => {
+                let mem_size = vm.get_memory().memory_size() / 1048576;
+                println!("memory size: {}MB", mem_size);
+                VmResponse::Ok
+            }
+            VmRequest::ReadMem(base_address, offset) => {
+                let mut buf = vec![0u8; offset as usize];
+                let res = vm.get_memory().read_at_addr(&mut buf[..], GuestAddress(base_address));
+                match res {
+                    Ok(size) => {
+                        println!("valid size: {}", size);
+                        for val in buf.iter() {
+                            print!("0x{:X} ", val);
+                        }
+                    },
+                    Err(e) => {
+                        println!("valid size: 0");
+                        for val in buf.iter() {
+                            print!("0x{:X} ", val);
+                        }
+                    }
+                }
                 VmResponse::Ok
             }
             VmRequest::BalloonCommand(BalloonControlCommand::Adjust { num_bytes }) => {

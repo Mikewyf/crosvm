@@ -3035,6 +3035,7 @@ fn run_control<V: VmArch + 'static, Vcpu: VcpuArch + 'static, I: IrqChipArch + '
                                 Ok(request) => {
                                     let mut run_mode_opt = None;
                                     let response = request.execute(
+                                        &mut linux.vm,
                                         &mut run_mode_opt,
                                         &balloon_host_tube,
                                         disk_host_tubes,
